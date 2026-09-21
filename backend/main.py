@@ -5,15 +5,18 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from backend.browser import BrowserController, BrowserUnavailable
+from backend.system_input import InputUnavailable, SystemInput
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 FRONTEND_DIR = BASE_DIR / "frontend"
 browser = BrowserController()
+system_input = SystemInput()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     yield
     await browser.close()
+    await system_input.close()
 
 app = FastAPI(title="TV Reomote", lifespan=lifespan)
 app.mount("/static", StaticFiles(directory=FRONTEND_DIR), name="static")
@@ -40,6 +43,13 @@ def browser_error(exc):
         return HTTPException(status_code=400, detail=str(exc))
     return HTTPException(status_code=500, detail=f"Error al controlar Chrome: {exc}")
 
+def input_error(exc):
+    if isinstance(exc, InputUnavailable):
+        return HTTPException(status_code=503, detail=str(exc))
+    if isinstance(exc, ValueError):
+        return HTTPException(status_code=400, detail=str(exc))
+    return HTTPException(status_code=500, detail=f"Error de entrada del sistema: {exc}")
+
 @app.get("/")
 async def root():
     return FileResponse(FRONTEND_DIR / "remote.html")
@@ -50,7 +60,9 @@ async def remote():
 
 @app.get("/api/status")
 async def status():
-    return await browser.status()
+    result = await browser.status()
+    result["input_connected"] = system_input.available()
+    return result
 
 @app.post("/api/navigate")
 async def navigate(req: NavigateRequest):
@@ -93,10 +105,10 @@ async def key(req: KeyRequest):
     if req.key not in allowed:
         raise HTTPException(status_code=400, detail="Tecla no permitida.")
     try:
-        await browser.press(req.key)
+        await system_input.press(req.key)
         return {"status": "ok"}
     except Exception as exc:
-        raise browser_error(exc)
+        raise input_error(exc)
 
 @app.post("/api/type")
 async def type_text(req: TextRequest):
@@ -109,25 +121,25 @@ async def type_text(req: TextRequest):
 @app.post("/api/mouse/move")
 async def mouse_move(req: MouseMoveRequest):
     try:
-        pos = await browser.mouse_move(req.dx, req.dy)
+        pos = await system_input.move(req.dx, req.dy)
         return {"status": "ok", **pos}
     except Exception as exc:
-        raise browser_error(exc)
+        raise input_error(exc)
 
 @app.post("/api/mouse/click")
 async def mouse_click(req: ClickRequest):
     if req.button not in {"left", "right", "middle"}:
         raise HTTPException(status_code=400, detail="Botón de ratón no permitido.")
     try:
-        await browser.click(req.button)
+        await system_input.click(req.button)
         return {"status": "ok"}
     except Exception as exc:
-        raise browser_error(exc)
+        raise input_error(exc)
 
 @app.post("/api/mouse/scroll")
 async def mouse_scroll(req: ScrollRequest):
     try:
-        await browser.scroll(req.dx, req.dy)
+        await system_input.scroll(req.dx, req.dy)
         return {"status": "ok"}
     except Exception as exc:
-        raise browser_error(exc)
+        raise input_error(exc)

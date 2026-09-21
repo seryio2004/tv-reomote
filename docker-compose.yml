@@ -4,6 +4,14 @@ services:
     container_name: tv-reomote
     restart: unless-stopped
     network_mode: host
+    user: "${TV_REMOTE_UID:-1000}:${TV_REMOTE_GID:-1000}"
     environment:
       BROWSER_CDP_URL: http://127.0.0.1:9222
       HOME_URL: https://www.youtube.com/
+      YDOTOOL_SOCKET: /tmp/.ydotool_socket
+    volumes:
+      - type: bind
+        source: /tmp/.ydotool_socket
+        target: /tmp/.ydotool_socket
+        bind:
+          create_host_path: false

@@ -1,4 +1,5 @@
 const c = document.getElementById('connection');
+const ic = document.getElementById('input-connection');
 const m = document.getElementById('message');
 const pt = document.getElementById('page-title');
 const pu = document.getElementById('page-url');
@@ -42,9 +43,13 @@ async function status() {
       c.className = 'status offline';
       pt.textContent = pu.textContent = '—';
     }
+    ic.textContent = data.input_connected ? 'Control conectado' : 'Control desconectado';
+    ic.className = data.input_connected ? 'status online' : 'status offline';
   } catch {
     c.textContent = 'Servidor no disponible';
     c.className = 'status offline';
+    ic.textContent = 'Control desconectado';
+    ic.className = 'status offline';
   }
 }
 
@@ -87,7 +92,7 @@ document.getElementById('type-form').onsubmit = async event => {
 };
 document.getElementById('refresh-status').onclick = status;
 
-// Keep mouse requests in order. While Chrome handles a movement, combine
+// Keep mouse requests in order. While the host handles a movement, combine
 // further movements instead of building up a backlog of stale positions.
 const mouseQueue = [];
 let mouseSending = false;
@@ -116,6 +121,7 @@ async function sendMouseQueue() {
     mouseQueue.length = 0;
     stopJoystick();
     msg(error.message, true);
+    status();
   } finally {
     mouseSending = false;
   }
