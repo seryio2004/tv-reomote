@@ -14,7 +14,7 @@ Chrome se ejecuta en Ubuntu, no dentro de Docker. FastAPI usa Playwright para co
 
 - Abrir URLs completas.
 - Atrás, adelante, recargar e inicio.
-- Touchpad, clic izquierdo/derecho y scroll.
+- Joystick para mover el cursor, clic izquierdo/derecho y scroll.
 - Flechas, Enter, Escape, Space y Tab.
 - Escritura de texto en el elemento enfocado.
 - Accesos rápidos a YouTube, Netflix y Prime Video.
@@ -39,7 +39,7 @@ Modo kiosk:
 BROWSER_MODE=kiosk ./scripts/start-browser.sh
 ```
 
-El perfil persistente se guarda en `~/.local/share/tv-reomote/chrome-profile`.
+El perfil persistente se guarda en `~/.local/share/tv-reomote/chrome-profile` con Chrome y en `~/snap/chromium/common/tv-reomote-profile` con Chromium Snap. Puedes cambiarlo con `TV_REMOTE_PROFILE`.
 
 Desde el móvil, conectado al mismo Wi-Fi, abre `http://IP_DEL_PORTATIL:8000`.
 

@@ -4,7 +4,8 @@ const pt = document.getElementById('page-title');
 const pu = document.getElementById('page-url');
 const u = document.getElementById('url');
 const ti = document.getElementById('text-input');
-const tp = document.getElementById('touchpad');
+const stick = document.getElementById('joystick');
+const knob = document.getElementById('joystick-knob');
 let mt = null;
 
 async function api(path, body = null) {
@@ -90,9 +91,6 @@ document.getElementById('refresh-status').onclick = status;
 // further movements instead of building up a backlog of stale positions.
 const mouseQueue = [];
 let mouseSending = false;
-let frame = null;
-let frameX = 0;
-let frameY = 0;
 
 async function sendMouseQueue() {
   if (mouseSending) return;
@@ -116,18 +114,14 @@ async function sendMouseQueue() {
     }
   } catch (error) {
     mouseQueue.length = 0;
+    stopJoystick();
     msg(error.message, true);
   } finally {
     mouseSending = false;
   }
 }
 
-function flushMove() {
-  if (frame !== null) cancelAnimationFrame(frame);
-  frame = null;
-  const dx = frameX;
-  const dy = frameY;
-  frameX = frameY = 0;
+function move(dx, dy) {
   if (dx === 0 && dy === 0) return;
   const last = mouseQueue[mouseQueue.length - 1];
   if (last && last.kind === 'move') {
@@ -139,20 +133,12 @@ function flushMove() {
   sendMouseQueue();
 }
 
-function move(dx, dy) {
-  frameX += dx * 1.6;
-  frameY += dy * 1.6;
-  if (frame === null) frame = requestAnimationFrame(flushMove);
-}
-
 function click(button) {
-  flushMove();
   mouseQueue.push({kind: 'click', button});
   sendMouseQueue();
 }
 
 function scroll(dy) {
-  flushMove();
   mouseQueue.push({kind: 'scroll', dy});
   sendMouseQueue();
 }
@@ -162,52 +148,83 @@ document.getElementById('right-click').onclick = () => click('right');
 document.getElementById('scroll-up').onclick = () => scroll(-550);
 document.getElementById('scroll-down').onclick = () => scroll(550);
 
-const TAP_SLOP = 6;
 let pointerId = null;
-let startX = 0;
-let startY = 0;
-let lastX = 0;
-let lastY = 0;
-let dragging = false;
+let joystickFrame = null;
+let lastTick = null;
+let axisX = 0;
+let axisY = 0;
 
-function updatePointer(event) {
+function updateJoystick(event) {
   if (event.pointerId !== pointerId) return;
-  if (!dragging && Math.hypot(event.clientX - startX, event.clientY - startY) <= TAP_SLOP) return;
-  dragging = true;
-  move(event.clientX - lastX, event.clientY - lastY);
-  lastX = event.clientX;
-  lastY = event.clientY;
+  const rect = stick.getBoundingClientRect();
+  const travel = Math.max(1, (Math.min(rect.width, rect.height) - knob.offsetWidth) / 2 - 8);
+  const rawX = event.clientX - rect.left - rect.width / 2;
+  const rawY = event.clientY - rect.top - rect.height / 2;
+  const scale = Math.min(1, travel / (Math.hypot(rawX, rawY) || 1));
+  const x = rawX * scale;
+  const y = rawY * scale;
+  axisX = x / travel;
+  axisY = y / travel;
+  stick.style.setProperty('--stick-x', x + 'px');
+  stick.style.setProperty('--stick-y', y + 'px');
 }
 
-tp.onpointerdown = event => {
-  if (pointerId !== null || !event.isPrimary || event.button !== 0) return;
-  pointerId = event.pointerId;
-  dragging = false;
-  startX = lastX = event.clientX;
-  startY = lastY = event.clientY;
-  tp.setPointerCapture(event.pointerId);
-};
-tp.onpointermove = updatePointer;
-tp.onpointerup = event => {
-  if (event.pointerId !== pointerId) return;
-  updatePointer(event);
+function joystickTick(timestamp) {
+  if (pointerId === null) return;
+  const elapsed = lastTick === null ? 0.033 : (timestamp - lastTick) / 1000;
+  if (lastTick === null || elapsed >= 0.03) {
+    lastTick = timestamp;
+    const strength = Math.hypot(axisX, axisY);
+    if (strength > 0.12) {
+      const amount = (strength - 0.12) / 0.88;
+      const speed = 90 + 650 * amount * amount;
+      const distance = speed * Math.min(elapsed, 0.06);
+      move(axisX / strength * distance, axisY / strength * distance);
+    }
+  }
+  joystickFrame = requestAnimationFrame(joystickTick);
+}
+
+function stopJoystick() {
+  if (pointerId === null) return;
+  const id = pointerId;
   pointerId = null;
-  if (tp.hasPointerCapture(event.pointerId)) tp.releasePointerCapture(event.pointerId);
-  if (dragging) flushMove();
-  else click('left');
-};
-tp.onpointercancel = event => {
-  if (event.pointerId === pointerId) {
-    pointerId = null;
-    flushMove();
+  if (joystickFrame !== null) cancelAnimationFrame(joystickFrame);
+  joystickFrame = null;
+  lastTick = null;
+  axisX = axisY = 0;
+  stick.style.setProperty('--stick-x', '0px');
+  stick.style.setProperty('--stick-y', '0px');
+  stick.classList.remove('active');
+  // A released joystick must not keep moving through queued requests.
+  for (let index = mouseQueue.length - 1; index >= 0; index--) {
+    if (mouseQueue[index].kind === 'move') mouseQueue.splice(index, 1);
   }
+  if (stick.hasPointerCapture(id)) stick.releasePointerCapture(id);
+}
+
+stick.onpointerdown = event => {
+  if (pointerId !== null || !event.isPrimary || event.button !== 0) return;
+  event.preventDefault();
+  pointerId = event.pointerId;
+  stick.setPointerCapture(pointerId);
+  stick.classList.add('active');
+  updateJoystick(event);
+  joystickFrame = requestAnimationFrame(joystickTick);
 };
-tp.onlostpointercapture = event => {
-  if (event.pointerId === pointerId) {
-    pointerId = null;
-    flushMove();
-  }
+stick.onpointermove = updateJoystick;
+stick.onpointerup = event => {
+  if (event.pointerId === pointerId) stopJoystick();
 };
+stick.onpointercancel = event => {
+  if (event.pointerId === pointerId) stopJoystick();
+};
+stick.onlostpointercapture = event => {
+  if (event.pointerId === pointerId) stopJoystick();
+};
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) stopJoystick();
+});
 
 status();
 setInterval(status, 5000);
