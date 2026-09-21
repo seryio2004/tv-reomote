@@ -9,7 +9,7 @@ Móvil -> FastAPI (Docker o Ubuntu) :8000 -> Chrome por CDP :9222 (navegación y
                                     -> ydotoold del host -> /dev/uinput (cursor, clic, scroll y teclas)
 ```
 
-El cursor visible se mueve con eventos de entrada del sistema. Chrome y la entrada del sistema tienen indicadores de conexión independientes en el mando. `ydotoold` siempre se ejecuta en Ubuntu; si la API está en Docker, el contenedor usa su socket Unix.
+El cursor visible se mueve con eventos de entrada del sistema. Chrome y la entrada del sistema tienen indicadores de conexión independientes en el mando. `ydotoold` siempre se ejecuta en Ubuntu; si la API está en Docker, un puente `socat` ofrece su socket en `runtime/ydotool.sock` para que Docker pueda montarlo.
 
 ## Arranque con Docker Compose
 
@@ -19,7 +19,7 @@ Instala y arranca el servicio de entrada en Ubuntu. El instalador usa `sudo` par
 ./scripts/setup-host.sh --docker
 ```
 
-Arranca la API con el UID y GID del usuario que ejecutó el instalador. Así el contenedor puede abrir el socket privado `/tmp/.ydotool_socket`:
+Arranca la API con el UID y GID del usuario que ejecutó el instalador. Así el contenedor puede abrir el socket privado `runtime/ydotool.sock`:
 
 ```bash
 TV_REMOTE_UID="$(id -u)" TV_REMOTE_GID="$(id -g)" docker compose up -d --build
@@ -27,9 +27,11 @@ TV_REMOTE_UID="$(id -u)" TV_REMOTE_GID="$(id -g)" docker compose up -d --build
 ./scripts/check.sh
 ```
 
-El navegador debe ejecutarse en la sesión gráfica de Ubuntu. Compose mantiene `network_mode: host` para conectar con Chrome por `127.0.0.1:9222` y monta únicamente el socket de `ydotoold`. Si reinicias `tv-remote-ydotoold.service`, recrea el contenedor con `TV_REMOTE_UID="$(id -u)" TV_REMOTE_GID="$(id -g)" docker compose up -d --force-recreate` para montar el socket nuevo.
+El navegador debe ejecutarse en la sesión gráfica de Ubuntu. Compose mantiene `network_mode: host` para conectar con Chrome por `127.0.0.1:9222` y monta únicamente el socket del puente de entrada. Si reinicias `tv-remote-socket-proxy.service`, recrea el contenedor con `TV_REMOTE_UID="$(id -u)" TV_REMOTE_GID="$(id -g)" docker compose up -d --force-recreate` para montar el socket nuevo.
 
-Después del primer `docker compose up`, la API arrancará al encender el portátil: el instalador habilita Docker y `ydotoold`, y Compose aplica `restart: unless-stopped`. Si detienes o eliminas el contenedor manualmente, vuelve a ejecutar `docker compose up -d`. El instalador también configura Chrome para abrirse a pantalla completa al iniciar tu sesión gráfica.
+El instalador reconoce Docker Engine instalado por paquetes o mediante Snap. Para Docker Snap, deja el proyecto dentro de tu carpeta personal, por ejemplo `~/codes/remote-tv`: Snap aísla `/tmp` y limita el acceso a archivos fuera de la carpeta personal. Si `docker compose` indica que no tienes permiso para acceder al daemon, sigue las [instrucciones del paquete Docker Snap para usarlo como usuario normal](https://github.com/canonical/docker-snap/blob/main/README.md#running-docker-as-normal-user) y vuelve a iniciar sesión antes de ejecutar Compose.
+
+Después del primer `docker compose up`, la API arrancará al encender el portátil: el instalador habilita el servicio de Docker correspondiente, `ydotoold` y el puente de entrada; Compose aplica `restart: unless-stopped`. Si detienes o eliminas el contenedor manualmente, vuelve a ejecutar `docker compose up -d`. El instalador también configura Chrome para abrirse a pantalla completa al iniciar tu sesión gráfica.
 
 ## Arranque sin Docker
 

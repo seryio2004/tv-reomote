@@ -8,10 +8,10 @@ services:
     environment:
       BROWSER_CDP_URL: http://127.0.0.1:9222
       HOME_URL: https://www.youtube.com/
-      YDOTOOL_SOCKET: /tmp/.ydotool_socket
+      YDOTOOL_SOCKET: /run/tv-remote/ydotool.sock
     volumes:
       - type: bind
-        source: /tmp/.ydotool_socket
-        target: /tmp/.ydotool_socket
+        source: ./runtime/ydotool.sock
+        target: /run/tv-remote/ydotool.sock
         bind:
           create_host_path: false
