@@ -1,84 +1,56 @@
-# TV Remote
+# TV Reomote
 
-Base mínima para controlar desde el móvil un reproductor web
-abierto en Chromium en un portátil conectado a una TV.
+Mando web para controlar desde un móvil un navegador Chrome abierto en un portátil Ubuntu conectado a una TV.
 
 ## Arquitectura
 
-- FastAPI dentro de Docker.
-- `/remote`: mando para el móvil.
-- `/player`: reproductor para la TV.
-- WebSocket para enviar comandos al reproductor.
-- Chromium se ejecuta en Ubuntu, fuera de Docker.
+```text
+Móvil -> FastAPI/Docker :8000 -> Chrome DevTools Protocol :9222 -> Chrome -> HDMI -> TV
+```
 
-## 1. Arrancar el servidor
+Chrome se ejecuta en Ubuntu, no dentro de Docker. FastAPI usa Playwright para conectarse por CDP al navegador existente.
+
+## Funciones
+
+- Abrir URLs completas.
+- Atrás, adelante, recargar e inicio.
+- Touchpad, clic izquierdo/derecho y scroll.
+- Flechas, Enter, Escape, Space y Tab.
+- Escritura de texto en el elemento enfocado.
+- Accesos rápidos a YouTube, Netflix y Prime Video.
+
+## Arranque
 
 ```bash
 docker compose up -d --build
+chmod +x scripts/*.sh
+./scripts/start-browser.sh
 ```
 
-Comprueba:
+Modo ventana:
 
 ```bash
-docker compose ps
+BROWSER_MODE=window ./scripts/start-browser.sh
 ```
 
-## 2. Abrir el reproductor en el portátil
-
-Da permisos al script:
+Modo kiosk:
 
 ```bash
-chmod +x scripts/start-kiosk.sh
+BROWSER_MODE=kiosk ./scripts/start-browser.sh
 ```
 
-Ejecuta:
+El perfil persistente se guarda en `~/.local/share/tv-reomote/chrome-profile`.
+
+Desde el móvil, conectado al mismo Wi-Fi, abre `http://IP_DEL_PORTATIL:8000`.
+
+Comprueba backend y CDP con:
 
 ```bash
-./scripts/start-kiosk.sh
+./scripts/check.sh
 ```
 
-También puedes abrir manualmente:
+No expongas el puerto `9222` a la red local. Esta versión no incluye autenticación y está pensada para una primera prueba en una red doméstica de confianza.
 
-```text
-http://localhost:8000/player
-```
+## DRM
 
-## 3. Abrir el mando desde el móvil
-
-Obtén la IP local del portátil:
-
-```bash
-hostname -I
-```
-
-Por ejemplo:
-
-```text
-192.168.1.50
-```
-
-Desde el móvil, conectado a la misma red:
-
-```text
-http://192.168.1.50:8000/remote
-```
-
-## Importante sobre las URLs
-
-Esta primera versión usa un elemento HTML `<video>`.
-
-Eso significa que la URL enviada debe apuntar a contenido que Chromium
-pueda reproducir directamente.
-
-Ejemplos habituales:
-
-- MP4 accesible por HTTP/HTTPS.
-- WebM.
-- Otros formatos soportados por Chromium.
-
-Una URL normal de una página de YouTube no es una URL directa de vídeo y
-no funcionará simplemente asignándola al `<video>`.
-
-El soporte para YouTube, Twitch y otras plataformas se puede añadir en una
-segunda fase mediante un resolvedor de URLs, yt-dlp o un enfoque diferente
-de reproducción.
+El proyecto no extrae ni retransmite streams: controla un navegador real. La compatibilidad final de Netflix/Prime con DRM depende del navegador y de la configuración de Linux; para estas plataformas conviene probar Google Chrome.

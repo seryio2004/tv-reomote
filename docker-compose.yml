@@ -1,9 +1,9 @@
 services:
-  tv-remote:
+  tv-reomote:
     build: .
-    container_name: tv-remote
-
+    container_name: tv-reomote
     restart: unless-stopped
-
-    ports:
-      - "8000:8000"
+    network_mode: host
+    environment:
+      BROWSER_CDP_URL: http://127.0.0.1:9222
+      HOME_URL: https://www.youtube.com/
