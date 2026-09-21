@@ -1,0 +1,9 @@
+services:
+  tv-remote:
+    build: .
+    container_name: tv-remote
+
+    restart: unless-stopped
+
+    ports:
+      - "8000:8000"

@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1"
+    >
+
+    <title>TV Remote</title>
+
+    <link
+        rel="stylesheet"
+        href="/static/css/remote.css"
+    >
+</head>
+
+<body>
+
+    <main class="remote">
+
+        <h1>TV Remote</h1>
+
+        <p class="subtitle">
+            Controla el reproductor del portátil desde el móvil.
+        </p>
+
+        <label for="url">
+            URL del vídeo
+        </label>
+
+        <input
+            id="url"
+            type="url"
+            placeholder="https://..."
+            autocomplete="off"
+        >
+
+        <button
+            id="play"
+            class="primary"
+        >
+            ▶ Reproducir
+        </button>
+
+        <section class="controls">
+
+            <button id="back">
+                ↶ 10s
+            </button>
+
+            <button id="pause">
+                ⏸
+            </button>
+
+            <button id="resume">
+                ▶
+            </button>
+
+            <button id="forward">
+                10s ↷
+            </button>
+
+        </section>
+
+        <section class="volume">
+
+            <div class="volume-header">
+                <span>Volumen</span>
+                <span id="volume-value">70%</span>
+            </div>
+
+            <input
+                id="volume"
+                type="range"
+                min="0"
+                max="100"
+                value="70"
+            >
+
+        </section>
+
+        <button
+            id="stop"
+            class="danger"
+        >
+            ■ Detener
+        </button>
+
+        <p
+            id="message"
+            class="message"
+        ></p>
+
+    </main>
+
+    <script src="/static/js/remote.js"></script>
+
+</body>
+</html>
