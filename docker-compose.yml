@@ -11,7 +11,8 @@ services:
       YDOTOOL_SOCKET: /run/tv-remote/ydotool.sock
     volumes:
       - type: bind
-        source: ./runtime/ydotool.sock
-        target: /run/tv-remote/ydotool.sock
+        source: ./runtime
+        target: /run/tv-remote
+        read_only: true
         bind:
           create_host_path: false

@@ -1,9 +1,10 @@
-Desde la carpeta del proyecto, con tu usuario normal:
+# Iniciar TV Reomote
 
 ```bash
 ./scripts/setup-host.sh --docker
 TV_REMOTE_UID="$(id -u)" TV_REMOTE_GID="$(id -g)" docker compose up -d --build
+./scripts/start-browser.sh
 ./scripts/check.sh
 ```
 
-El instalador admite Docker instalado mediante Snap. Si no tienes permiso para usar `docker compose`, configura el acceso de tu usuario según el apartado «Arranque con Docker Compose» de README.md.
+Se requiere `/usr/local/bin/ydotoold` 1.x. Consulta [README.md](README.md) para instalarlo y diagnosticar Docker Snap o los permisos de Docker.

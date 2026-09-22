@@ -1,10 +1,10 @@
-"""Desktop input through the Unix socket of ydotoold 0.1.8 or 1.x."""
+"""Desktop input through the datagram socket of ydotoold 1.x."""
 
 import asyncio
-import errno
 import math
 import os
 import socket
+import stat
 import struct
 
 
@@ -24,7 +24,6 @@ REL_WHEEL = 8
 BTN_LEFT = 0x110
 BTN_RIGHT = 0x111
 BTN_MIDDLE = 0x112
-EVENT = struct.Struct("=HHi")
 # ydotoold 1.x receives one native Linux struct input_event per datagram.
 INPUT_EVENT = struct.Struct("@llHHi")
 
@@ -37,72 +36,64 @@ KEYS = {
 BUTTONS = {"left": BTN_LEFT, "right": BTN_RIGHT, "middle": BTN_MIDDLE}
 
 
-def report(*events):
-    return b"".join(EVENT.pack(*event) for event in (*events, (EV_SYN, SYN_REPORT, 0)))
-
-
 def input_event(event):
     return INPUT_EVENT.pack(0, 0, *event)
 
 
 class SystemInput:
     def __init__(self):
-        self.socket_path = os.getenv("YDOTOOL_SOCKET", "/tmp/.ydotool_socket")
+        self.socket_path = os.getenv("YDOTOOL_SOCKET", "runtime/ydotool.sock")
         self._lock = asyncio.Lock()
         self._socket = None
-        self._socket_type = None
+        self._socket_identity = None
+        self._send_failed = False
         self._fraction_x = 0.0
         self._fraction_y = 0.0
 
     def available(self):
-        for socket_type in (socket.SOCK_DGRAM, socket.SOCK_STREAM):
-            try:
-                with socket.socket(socket.AF_UNIX, socket_type) as client:
-                    client.settimeout(0.2)
-                    client.connect(self.socket_path)
-                return True
-            except OSError as exc:
-                if exc.errno != errno.EPROTOTYPE:
-                    return False
-        return False
+        # A status poll must never connect to ydotoold or send it a probe.
+        identity = self._path_identity()
+        return (identity is not None and os.access(self.socket_path, os.W_OK)
+                and (not self._send_failed or identity != self._socket_identity))
+
+    def _path_identity(self):
+        try:
+            info = os.stat(self.socket_path)
+        except OSError:
+            return None
+        return (info.st_dev, info.st_ino, info.st_ctime_ns) if stat.S_ISSOCK(info.st_mode) else None
 
     async def _connect(self):
         loop = asyncio.get_running_loop()
-        for socket_type in (socket.SOCK_DGRAM, socket.SOCK_STREAM):
-            client = socket.socket(socket.AF_UNIX, socket_type)
-            client.setblocking(False)
-            try:
-                await asyncio.wait_for(loop.sock_connect(client, self.socket_path), timeout=0.5)
-            except OSError as exc:
-                client.close()
-                if exc.errno == errno.EPROTOTYPE:
-                    continue
-                raise
-            except asyncio.TimeoutError:
-                client.close()
-                raise
-            self._socket = client
-            self._socket_type = socket_type
-            return
-        raise OSError("Tipo de socket de ydotoold no compatible")
+        identity = self._path_identity()
+        if identity is None:
+            raise OSError("No existe el socket de ydotoold 1.x")
+        client = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
+        client.setblocking(False)
+        try:
+            await asyncio.wait_for(loop.sock_connect(client, self.socket_path), timeout=0.5)
+        except BaseException:
+            client.close()
+            raise
+        self._socket = client
+        self._socket_identity = identity
+        self._send_failed = False
 
     async def _send(self, events):
         try:
+            identity = self._path_identity()
+            if self._socket is not None and identity != self._socket_identity:
+                self._close_socket()
             if self._socket is None:
                 await self._connect()
             loop = asyncio.get_running_loop()
-            if self._socket_type == socket.SOCK_DGRAM:
-                for frame in events:
-                    for event in (*frame, (EV_SYN, SYN_REPORT, 0)):
-                        await asyncio.wait_for(
-                            loop.sock_sendall(self._socket, input_event(event)), timeout=0.5
-                        )
-            else:
-                await asyncio.wait_for(
-                    loop.sock_sendall(self._socket, b"".join(report(*frame) for frame in events)),
-                    timeout=0.5,
-                )
+            for frame in events:
+                for event in (*frame, (EV_SYN, SYN_REPORT, 0)):
+                    await asyncio.wait_for(
+                        loop.sock_sendall(self._socket, input_event(event)), timeout=0.5
+                    )
         except (OSError, asyncio.TimeoutError) as exc:
+            self._send_failed = True
             self._close_socket()
             raise InputUnavailable(
                 "Entrada del sistema no disponible. Ejecuta scripts/setup-host.sh y comprueba ydotoold."
@@ -110,7 +101,6 @@ class SystemInput:
 
     def _close_socket(self):
         client, self._socket = self._socket, None
-        self._socket_type = None
         if client is not None:
             client.close()
 
