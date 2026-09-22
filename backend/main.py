@@ -5,7 +5,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from backend.browser import BrowserController, BrowserUnavailable
-from backend.system_input import InputUnavailable, SystemInput
+from backend.system_input import InputUnavailable, KEYS, SystemInput
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 FRONTEND_DIR = BASE_DIR / "frontend"
@@ -101,8 +101,7 @@ async def home():
 
 @app.post("/api/key")
 async def key(req: KeyRequest):
-    allowed = {"ArrowUp","ArrowDown","ArrowLeft","ArrowRight","Enter","Escape","Space","Tab","Shift+Tab","Backspace","Delete","Home","End","PageUp","PageDown"}
-    if req.key not in allowed:
+    if req.key not in KEYS:
         raise HTTPException(status_code=400, detail="Tecla no permitida.")
     try:
         await system_input.press(req.key)

@@ -32,6 +32,7 @@ KEYS = {
     "Enter": (28,), "Escape": (1,), "Space": (57,), "Tab": (15,),
     "Shift+Tab": (42, 15), "Backspace": (14,), "Delete": (111,),
     "Home": (102,), "End": (107,), "PageUp": (104,), "PageDown": (109,),
+    "VolumeUp": (115,), "VolumeDown": (114,), "VolumeMute": (113,),
 }
 BUTTONS = {"left": BTN_LEFT, "right": BTN_RIGHT, "middle": BTN_MIDDLE}
 

@@ -39,6 +39,14 @@ class SystemInputTests(unittest.IsolatedAsyncioTestCase):
             (((EV_KEY, 103, 1),), ((EV_KEY, 103, 0),)),
         ])
 
+    async def test_volume_keys_emit_linux_media_codes(self):
+        self.input._send = AsyncMock()
+        for name, code in (("VolumeDown", 114), ("VolumeMute", 113), ("VolumeUp", 115)):
+            await self.input.press(name)
+            self.assertEqual(self.input._send.call_args.args[0], (
+                ((EV_KEY, code, 1),), ((EV_KEY, code, 0),)
+            ))
+
     async def test_missing_daemon_is_reported(self):
         with tempfile.TemporaryDirectory() as directory:
             self.input.socket_path = str(Path(directory) / "missing.sock")
