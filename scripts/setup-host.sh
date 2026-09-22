@@ -37,12 +37,13 @@ fi
 mkdir -p "$PROJECT_DIR/runtime"
 chmod 0700 "$PROJECT_DIR/runtime"
 
-# Remove services and dependencies from earlier stream/proxy and local-API installs.
+# Remove Docker's old dependency before stopping the proxy it required.
+sudo rm -f /etc/systemd/system/docker.service.d/tv-remote.conf \
+    /etc/systemd/system/snap.docker.dockerd.service.d/tv-remote.conf
+sudo systemctl daemon-reload
 sudo systemctl disable --now tv-remote-socket-proxy.service tv-remote-api.service 2>/dev/null || true
 sudo rm -f /etc/systemd/system/tv-remote-socket-proxy.service \
-    /etc/systemd/system/tv-remote-api.service \
-    /etc/systemd/system/docker.service.d/tv-remote.conf \
-    /etc/systemd/system/snap.docker.dockerd.service.d/tv-remote.conf
+    /etc/systemd/system/tv-remote-api.service
 
 service_file="$(mktemp)"
 trap 'rm -f "$service_file"' EXIT
@@ -93,6 +94,18 @@ PY
 
 "$PROJECT_DIR/scripts/install-browser-autostart.sh"
 if command -v docker >/dev/null 2>&1; then
+    if [[ "$(command -v docker)" == /snap/bin/docker ]] && \
+        command -v snap >/dev/null 2>&1 && snap list docker >/dev/null 2>&1; then
+        if ! systemctl is-active --quiet snap.docker.dockerd.service; then
+            sudo snap start --enable docker.dockerd || \
+                echo "Aviso: no se pudo iniciar Docker Snap (snap.docker.dockerd.service)." >&2
+        fi
+    elif systemctl cat docker.service >/dev/null 2>&1; then
+        if ! systemctl is-active --quiet docker.service; then
+            sudo systemctl start docker.service || \
+                echo "Aviso: no se pudo iniciar docker.service; consulta systemctl status docker.service." >&2
+        fi
+    fi
     if command -v snap >/dev/null 2>&1 && snap list docker >/dev/null 2>&1 && \
         [[ "$(command -v docker)" == /snap/bin/docker ]] && [[ "$PROJECT_DIR" != "$HOME/"* ]]; then
         echo "Aviso: Docker Snap solo puede montar el proyecto dentro de $HOME. Mueve el proyecto antes de usar Compose." >&2
