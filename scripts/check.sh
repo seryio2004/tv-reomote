@@ -41,7 +41,7 @@ if not api_reachable:
 elif not api_ok and cdp_ok:
     print("La API responde, pero no se conecta a Chrome; comprueba BROWSER_CDP_URL.")
 if api_reachable and not input_ok:
-    print("Comprueba tv-remote-ydotoold con: systemctl status tv-remote-ydotoold.service")
+    print("Comprueba: systemctl status tv-remote-ydotoold.service tv-remote-socket-proxy.service")
 if not api_ok or not cdp_ok or not input_ok:
     sys.exit(1)
 PY

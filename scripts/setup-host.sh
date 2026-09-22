@@ -16,6 +16,7 @@ USER_NAME="$(id -un)"
 USER_UID="$(id -u)"
 USER_GID="$(id -g)"
 SOCKET_PATH="$PROJECT_DIR/runtime/ydotool.sock"
+HOST_SOCKET_PATH=/tmp/.ydotool_socket
 
 if [[ "$INSTALL_API" -eq 0 ]]; then
     if [[ "$(command -v docker || true)" == /snap/bin/docker ]] && snap list docker >/dev/null 2>&1; then
@@ -41,14 +42,34 @@ mkdir -p "$PROJECT_DIR/runtime"
 chmod 0700 "$PROJECT_DIR/runtime"
 
 sudo apt-get update
-sudo apt-get install -y ydotoold
-if [[ "$INSTALL_API" -eq 0 ]]; then
-    sudo apt-get install -y socat
+installed_ydotool_version="$(dpkg-query -W -f='${Version}' ydotool 2>/dev/null || true)"
+ydotoold_candidate="$(LC_ALL=C apt-cache policy ydotoold 2>/dev/null | awk '/Candidate:/ {print $2}' || true)"
+if [[ "$installed_ydotool_version" != 1.* && -n "$ydotoold_candidate" && "$ydotoold_candidate" != "(none)" ]]; then
+    sudo apt-get install -y ydotoold
+    ydotool_version="$(dpkg-query -W -f='${Version}' ydotoold)"
+    if [[ "$ydotool_version" != 0.1.8-* ]]; then
+        echo "Versión de ydotoold no compatible: $ydotool_version" >&2
+        exit 1
+    fi
+    SOCKET_TYPE=stream
+    YDOTOOLD_COMMAND=/usr/bin/ydotoold
+else
+    sudo apt-get install -y ydotool
+    ydotool_version="$(dpkg-query -W -f='${Version}' ydotool)"
+    if [[ "$ydotool_version" != 1.* ]]; then
+        echo "Versión de ydotool no compatible: $ydotool_version" >&2
+        exit 1
+    fi
+    SOCKET_TYPE=dgram
+    HOST_SOCKET_PATH="$SOCKET_PATH"
+    YDOTOOLD_COMMAND="/usr/bin/ydotoold --socket-path=$SOCKET_PATH --socket-perm=0600"
+    if (( ${#SOCKET_PATH} >= 108 )); then
+        echo "La ruta del socket Unix es demasiado larga: $SOCKET_PATH" >&2
+        exit 1
+    fi
 fi
-ydotool_version="$(dpkg-query -W -f='${Version}' ydotoold)"
-if [[ "$ydotool_version" != 0.1.8-* ]]; then
-    echo "Esta integración requiere ydotoold 0.1.8 de Ubuntu; versión instalada: $ydotool_version" >&2
-    exit 1
+if [[ "$INSTALL_API" -eq 0 && "$SOCKET_TYPE" == stream ]]; then
+    sudo apt-get install -y socat
 fi
 if [[ "$INSTALL_API" -eq 1 ]]; then
     sudo apt-get install -y python3-venv
@@ -64,8 +85,8 @@ After=systemd-udevd.service
 [Service]
 Type=exec
 ExecStartPre=/usr/sbin/modprobe uinput
-ExecStart=/usr/bin/ydotoold
-ExecStartPost=/bin/bash $PROJECT_DIR/scripts/allow-ydotool-socket.sh $USER_UID $USER_GID
+ExecStart=$YDOTOOLD_COMMAND
+ExecStartPost=/bin/bash $PROJECT_DIR/scripts/allow-ydotool-socket.sh $USER_UID $USER_GID $HOST_SOCKET_PATH
 Restart=on-failure
 RestartSec=2
 
@@ -85,6 +106,7 @@ Type=exec
 User=$USER_NAME
 WorkingDirectory=$PROJECT_DIR
 Environment=PYTHONDONTWRITEBYTECODE=1
+Environment=YDOTOOL_SOCKET=$HOST_SOCKET_PATH
 ExecStart=$PROJECT_DIR/scripts/start-server.sh
 Restart=on-failure
 RestartSec=2
@@ -93,6 +115,7 @@ RestartSec=2
 WantedBy=multi-user.target
 EOF
 else
+if [[ "$SOCKET_TYPE" == stream ]]; then
 sudo tee /etc/systemd/system/tv-remote-socket-proxy.service >/dev/null <<EOF
 [Unit]
 Description=TV Remote socket bridge for Docker
@@ -111,15 +134,22 @@ RestartSec=2
 [Install]
 WantedBy=multi-user.target
 EOF
+    DOCKER_DEPENDENCY=tv-remote-socket-proxy.service
+else
+    DOCKER_DEPENDENCY=tv-remote-ydotoold.service
+fi
     sudo mkdir -p "/etc/systemd/system/$DOCKER_SERVICE.d"
-    sudo tee "/etc/systemd/system/$DOCKER_SERVICE.d/tv-remote.conf" >/dev/null <<'EOF'
+    sudo tee "/etc/systemd/system/$DOCKER_SERVICE.d/tv-remote.conf" >/dev/null <<EOF
 [Unit]
-Requires=tv-remote-socket-proxy.service
-After=tv-remote-socket-proxy.service
+Requires=$DOCKER_DEPENDENCY
+After=$DOCKER_DEPENDENCY
 EOF
 fi
 
 sudo systemctl daemon-reload
+if [[ "$SOCKET_TYPE" == dgram ]] && systemctl cat tv-remote-socket-proxy.service >/dev/null 2>&1; then
+    sudo systemctl disable --now tv-remote-socket-proxy.service
+fi
 sudo systemctl enable tv-remote-ydotoold.service
 sudo systemctl restart tv-remote-ydotoold.service
 if [[ "$INSTALL_API" -eq 1 ]]; then
@@ -129,21 +159,24 @@ else
     if systemctl cat tv-remote-api.service >/dev/null 2>&1; then
         sudo systemctl disable --now tv-remote-api.service
     fi
-    sudo systemctl enable --now tv-remote-socket-proxy.service
+    if [[ "$SOCKET_TYPE" == stream ]]; then
+        sudo systemctl enable --now tv-remote-socket-proxy.service
+    fi
     if [[ "$DOCKER_SNAP" -eq 1 ]]; then
         sudo snap start --enable docker.dockerd
     else
         sudo systemctl enable --now docker.service
     fi
 fi
-YDOTOOL_SOCKET="/tmp/.ydotool_socket" python3 - <<'PY'
+YDOTOOL_SOCKET="$HOST_SOCKET_PATH" YDOTOOL_SOCKET_TYPE="$SOCKET_TYPE" python3 - <<'PY'
 import socket
 import time
 import os
 
+socket_type = socket.SOCK_DGRAM if os.environ["YDOTOOL_SOCKET_TYPE"] == "dgram" else socket.SOCK_STREAM
 for attempt in range(5):
     try:
-        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as client:
+        with socket.socket(socket.AF_UNIX, socket_type) as client:
             client.settimeout(1)
             client.connect(os.environ["YDOTOOL_SOCKET"])
         print("Entrada del sistema: conectada.")
@@ -154,7 +187,7 @@ for attempt in range(5):
 else:
     raise SystemExit("ydotoold no responde. Comprueba systemctl status tv-remote-ydotoold.")
 PY
-if [[ "$INSTALL_API" -eq 0 ]]; then
+if [[ "$INSTALL_API" -eq 0 && "$SOCKET_TYPE" == stream ]]; then
     YDOTOOL_SOCKET="$SOCKET_PATH" python3 - <<'PY'
 import os
 import socket

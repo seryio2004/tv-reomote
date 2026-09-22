@@ -1,11 +1,7 @@
-"""Desktop input through the ydotoold 0.1.8 Unix socket on Ubuntu.
-
-The packaged 0.1.8 client does not register its documented relative-move
-command. The daemon's protocol is the packed uInputRawData structure:
-uint16 event type, uint16 code, int32 value, all in native byte order.
-"""
+"""Desktop input through the Unix socket of ydotoold 0.1.8 or 1.x."""
 
 import asyncio
+import errno
 import math
 import os
 import socket
@@ -29,6 +25,8 @@ BTN_LEFT = 0x110
 BTN_RIGHT = 0x111
 BTN_MIDDLE = 0x112
 EVENT = struct.Struct("=HHi")
+# ydotoold 1.x receives one native Linux struct input_event per datagram.
+INPUT_EVENT = struct.Struct("@llHHi")
 
 KEYS = {
     "ArrowUp": (103,), "ArrowDown": (108,), "ArrowLeft": (105,), "ArrowRight": (106,),
@@ -43,49 +41,82 @@ def report(*events):
     return b"".join(EVENT.pack(*event) for event in (*events, (EV_SYN, SYN_REPORT, 0)))
 
 
+def input_event(event):
+    return INPUT_EVENT.pack(0, 0, *event)
+
+
 class SystemInput:
     def __init__(self):
         self.socket_path = os.getenv("YDOTOOL_SOCKET", "/tmp/.ydotool_socket")
         self._lock = asyncio.Lock()
-        self._writer = None
+        self._socket = None
+        self._socket_type = None
         self._fraction_x = 0.0
         self._fraction_y = 0.0
 
     def available(self):
-        try:
-            with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as client:
-                client.settimeout(0.2)
-                client.connect(self.socket_path)
-            return True
-        except OSError:
-            return False
+        for socket_type in (socket.SOCK_DGRAM, socket.SOCK_STREAM):
+            try:
+                with socket.socket(socket.AF_UNIX, socket_type) as client:
+                    client.settimeout(0.2)
+                    client.connect(self.socket_path)
+                return True
+            except OSError as exc:
+                if exc.errno != errno.EPROTOTYPE:
+                    return False
+        return False
+
+    async def _connect(self):
+        loop = asyncio.get_running_loop()
+        for socket_type in (socket.SOCK_DGRAM, socket.SOCK_STREAM):
+            client = socket.socket(socket.AF_UNIX, socket_type)
+            client.setblocking(False)
+            try:
+                await asyncio.wait_for(loop.sock_connect(client, self.socket_path), timeout=0.5)
+            except OSError as exc:
+                client.close()
+                if exc.errno == errno.EPROTOTYPE:
+                    continue
+                raise
+            except asyncio.TimeoutError:
+                client.close()
+                raise
+            self._socket = client
+            self._socket_type = socket_type
+            return
+        raise OSError("Tipo de socket de ydotoold no compatible")
 
     async def _send(self, events):
         try:
-            if self._writer is None or self._writer.is_closing():
-                _, self._writer = await asyncio.wait_for(
-                    asyncio.open_unix_connection(self.socket_path), timeout=0.5
+            if self._socket is None:
+                await self._connect()
+            loop = asyncio.get_running_loop()
+            if self._socket_type == socket.SOCK_DGRAM:
+                for frame in events:
+                    for event in (*frame, (EV_SYN, SYN_REPORT, 0)):
+                        await asyncio.wait_for(
+                            loop.sock_sendall(self._socket, input_event(event)), timeout=0.5
+                        )
+            else:
+                await asyncio.wait_for(
+                    loop.sock_sendall(self._socket, b"".join(report(*frame) for frame in events)),
+                    timeout=0.5,
                 )
-            self._writer.write(b"".join(report(*frame) for frame in events))
-            await asyncio.wait_for(self._writer.drain(), timeout=0.5)
         except (OSError, asyncio.TimeoutError) as exc:
-            await self._close_writer()
+            self._close_socket()
             raise InputUnavailable(
                 "Entrada del sistema no disponible. Ejecuta scripts/setup-host.sh y comprueba ydotoold."
             ) from exc
 
-    async def _close_writer(self):
-        writer, self._writer = self._writer, None
-        if writer is not None:
-            writer.close()
-            try:
-                await asyncio.wait_for(writer.wait_closed(), timeout=0.5)
-            except (OSError, asyncio.TimeoutError):
-                pass
+    def _close_socket(self):
+        client, self._socket = self._socket, None
+        self._socket_type = None
+        if client is not None:
+            client.close()
 
     async def close(self):
         async with self._lock:
-            await self._close_writer()
+            self._close_socket()
 
     async def move(self, dx, dy):
         if not math.isfinite(dx) or not math.isfinite(dy):

@@ -9,11 +9,11 @@ Móvil -> FastAPI (Docker o Ubuntu) :8000 -> Chrome por CDP :9222 (navegación y
                                     -> ydotoold del host -> /dev/uinput (cursor, clic, scroll y teclas)
 ```
 
-El cursor visible se mueve con eventos de entrada del sistema. Chrome y la entrada del sistema tienen indicadores de conexión independientes en el mando. `ydotoold` siempre se ejecuta en Ubuntu; si la API está en Docker, un puente `socat` ofrece su socket en `runtime/ydotool.sock` para que Docker pueda montarlo.
+El cursor visible se mueve con eventos de entrada del sistema. Chrome y la entrada del sistema tienen indicadores de conexión independientes en el mando. `ydotoold` siempre se ejecuta en Ubuntu. Con la versión 0.1.8, `socat` ofrece su socket en `runtime/ydotool.sock` para Docker; con la versión 1.x, `ydotoold` crea directamente un socket de datagramas en esa ruta.
 
 ## Arranque con Docker Compose
 
-Instala y arranca el servicio de entrada en Ubuntu. El instalador usa `sudo` para instalar `ydotoold` y crear su servicio de systemd:
+Instala y arranca el servicio de entrada en Ubuntu. El instalador usa `sudo` para instalar el paquete `ydotoold` 0.1.8 o `ydotool` 1.x, según la versión disponible, y crear su servicio de systemd:
 
 ```bash
 ./scripts/setup-host.sh --docker
@@ -27,11 +27,11 @@ TV_REMOTE_UID="$(id -u)" TV_REMOTE_GID="$(id -g)" docker compose up -d --build
 ./scripts/check.sh
 ```
 
-El navegador debe ejecutarse en la sesión gráfica de Ubuntu. Compose mantiene `network_mode: host` para conectar con Chrome por `127.0.0.1:9222` y monta únicamente el socket del puente de entrada. Si reinicias `tv-remote-socket-proxy.service`, recrea el contenedor con `TV_REMOTE_UID="$(id -u)" TV_REMOTE_GID="$(id -g)" docker compose up -d --force-recreate` para montar el socket nuevo.
+El navegador debe ejecutarse en la sesión gráfica de Ubuntu. Compose mantiene `network_mode: host` para conectar con Chrome por `127.0.0.1:9222` y monta el socket de entrada. Si reinicias el servicio que crea `runtime/ydotool.sock` (`tv-remote-socket-proxy.service` con 0.1.8 o `tv-remote-ydotoold.service` con 1.x), recrea el contenedor con `TV_REMOTE_UID="$(id -u)" TV_REMOTE_GID="$(id -g)" docker compose up -d --force-recreate` para montar el socket nuevo.
 
 El instalador reconoce Docker Engine instalado por paquetes o mediante Snap. Para Docker Snap, deja el proyecto dentro de tu carpeta personal, por ejemplo `~/codes/remote-tv`: Snap aísla `/tmp` y limita el acceso a archivos fuera de la carpeta personal. Si `docker compose` indica que no tienes permiso para acceder al daemon, sigue las [instrucciones del paquete Docker Snap para usarlo como usuario normal](https://github.com/canonical/docker-snap/blob/main/README.md#running-docker-as-normal-user) y vuelve a iniciar sesión antes de ejecutar Compose.
 
-Después del primer `docker compose up`, la API arrancará al encender el portátil: el instalador habilita el servicio de Docker correspondiente, `ydotoold` y el puente de entrada; Compose aplica `restart: unless-stopped`. Si detienes o eliminas el contenedor manualmente, vuelve a ejecutar `docker compose up -d`. El instalador también configura Chrome para abrirse a pantalla completa al iniciar tu sesión gráfica.
+Después del primer `docker compose up`, la API arrancará al encender el portátil: el instalador habilita el servicio de Docker correspondiente, `ydotoold` y, si hace falta, el puente de entrada; Compose aplica `restart: unless-stopped`. Si detienes o eliminas el contenedor manualmente, vuelve a ejecutar `docker compose up -d`. El instalador también configura Chrome para abrirse a pantalla completa al iniciar tu sesión gráfica.
 
 ## Arranque sin Docker
 
@@ -44,7 +44,7 @@ docker compose down
 ./scripts/check.sh
 ```
 
-El instalador está preparado para `ydotoold` 0.1.8 de Ubuntu. En esa versión el daemon crea `/tmp/.ydotool_socket` con acceso restringido; el servicio concede acceso solo al usuario que ejecutó el instalador. La API envía eventos mediante el protocolo de esa versión.
+El instalador admite `ydotoold` 0.1.8 y `ydotool` 1.x de Ubuntu. La versión 0.1.8 crea un socket de flujo en `/tmp/.ydotool_socket`; la versión 1.x crea un socket de datagramas en `runtime/ydotool.sock`. El backend detecta el tipo de socket y envía los eventos con el formato correspondiente. El servicio concede acceso solo al usuario que ejecutó el instalador.
 
 En este modo, los servicios `tv-remote-api` y `tv-remote-ydotoold` quedan habilitados para arrancar con Ubuntu. Chrome se abrirá a pantalla completa al iniciar tu sesión gráfica.
 

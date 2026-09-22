@@ -3,7 +3,7 @@ set -euo pipefail
 
 target_uid="$1"
 target_gid="$2"
-socket_path=/tmp/.ydotool_socket
+socket_path="${3:-/tmp/.ydotool_socket}"
 for attempt in {1..50}; do
     if [[ -S "$socket_path" ]]; then
         chown "$target_uid:$target_gid" "$socket_path"
