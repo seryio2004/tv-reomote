@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 START_URL="${START_URL:-https://www.youtube.com/}"
-BROWSER_MODE="${BROWSER_MODE:-maximized}"
+BROWSER_MODE="${BROWSER_MODE:-fullscreen}"
 CDP_PORT="${CDP_PORT:-9222}"
 find_browser(){ for c in google-chrome-stable google-chrome chromium chromium-browser; do if command -v "$c" >/dev/null 2>&1; then echo "$c"; return 0; fi; done; return 1; }
 BROWSER_BIN="$(find_browser || true)"

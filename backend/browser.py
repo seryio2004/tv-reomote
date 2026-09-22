@@ -108,6 +108,45 @@ class BrowserController:
     async def type_text(self, text):
         await self._run(lambda page: page.keyboard.insert_text(text))
 
+    async def toggle_fullscreen(self):
+        async def toggle(page):
+            session = await page.context.new_cdp_session(page)
+            try:
+                window = await session.send("Browser.getWindowForTarget")
+                fullscreen = window["bounds"]["windowState"] != "fullscreen"
+                await session.send("Browser.setWindowBounds", {
+                    "windowId": window["windowId"],
+                    "bounds": {"windowState": "fullscreen" if fullscreen else "normal"},
+                })
+                return {"fullscreen": fullscreen}
+            finally:
+                try:
+                    await session.detach()
+                except Exception:
+                    pass
+
+        return await self._run(toggle)
+
+    async def close_popups(self):
+        browser = await self._connect()
+        closed = 0
+        for context in browser.contexts:
+            for page in list(context.pages):
+                if page.is_closed():
+                    continue
+                try:
+                    opener = await page.opener()
+                    if opener is not None:
+                        await page.close(run_before_unload=False)
+                        closed += 1
+                except Exception as exc:
+                    if not browser.is_connected():
+                        self._browser = None
+                        raise BrowserUnavailable("Se perdió la conexión CDP con Chrome.") from exc
+                    if not page.is_closed():
+                        raise
+        return {"closed": closed}
+
     async def status(self):
         async def snapshot(page):
             try:

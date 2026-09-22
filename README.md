@@ -39,7 +39,7 @@ Para Docker Snap, coloca el proyecto dentro de tu carpeta personal. Si `docker c
 
 Abre `http://IP_DEL_PC:8000` desde un móvil de la misma red. El cursor, clics, scroll y teclas usan `/dev/uinput`; navegar y escribir texto en Chrome usan CDP. `./scripts/check.sh` informa por separado del daemon Docker, API, CDP, servicio `ydotoold`, socket y `/dev/uinput`.
 
-Para pantalla completa usa `BROWSER_MODE=fullscreen ./scripts/start-browser.sh`; para kiosk, `BROWSER_MODE=kiosk ./scripts/start-browser.sh`. El perfil se guarda en `~/.local/share/tv-reomote/chrome-profile` con Chrome y en `~/snap/chromium/common/tv-reomote-profile` con Chromium Snap. Puedes cambiarlo con `TV_REMOTE_PROFILE`.
+Chrome se abre en pantalla completa por defecto; el botón «Pantalla completa» del mando alterna entre ese estado y el modo ventana. Para ocultar la interfaz de Chrome permanentemente al iniciar, usa `BROWSER_MODE=kiosk ./scripts/start-browser.sh`. El perfil se guarda en `~/.local/share/tv-reomote/chrome-profile` con Chrome y en `~/snap/chromium/common/tv-reomote-profile` con Chromium Snap. Puedes cambiarlo con `TV_REMOTE_PROFILE`.
 
 Chrome necesita una sesión gráfica iniciada. Puedes ejecutar `./scripts/install-browser-autostart.sh` para añadirlo al inicio de sesión. El puerto CDP 9222 debe escuchar solo en `127.0.0.1`. La API no incluye autenticación; úsala en una red local de confianza.
 

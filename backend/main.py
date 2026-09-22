@@ -99,6 +99,20 @@ async def home():
     except Exception as exc:
         raise browser_error(exc)
 
+@app.post("/api/close-popups")
+async def close_popups():
+    try:
+        return await browser.close_popups()
+    except Exception as exc:
+        raise browser_error(exc)
+
+@app.post("/api/fullscreen")
+async def toggle_fullscreen():
+    try:
+        return await browser.toggle_fullscreen()
+    except Exception as exc:
+        raise browser_error(exc)
+
 @app.post("/api/key")
 async def key(req: KeyRequest):
     if req.key not in KEYS:

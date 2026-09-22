@@ -71,3 +71,47 @@ class BrowserControllerTests(unittest.IsolatedAsyncioTestCase):
             factory.return_value.start = AsyncMock(return_value=playwright)
             self.assertFalse((await controller.status())["connected"])
             self.assertTrue((await controller.status())["connected"])
+
+    async def test_close_popups_preserves_main_and_manual_tabs(self):
+        browser, main_page = self.make_browser("https://main.example")
+        manual_page = MagicMock()
+        popup_page = MagicMock()
+        for page in (main_page, manual_page, popup_page):
+            page.is_closed.return_value = False
+            page.close = AsyncMock()
+        main_page.opener = AsyncMock(return_value=None)
+        manual_page.opener = AsyncMock(return_value=None)
+        popup_page.opener = AsyncMock(return_value=main_page)
+        browser.contexts[0].pages = [main_page, manual_page, popup_page]
+        controller = BrowserController()
+        controller._connect = AsyncMock(return_value=browser)
+
+        self.assertEqual(await controller.close_popups(), {"closed": 1})
+        popup_page.close.assert_awaited_once_with(run_before_unload=False)
+        main_page.close.assert_not_awaited()
+        manual_page.close.assert_not_awaited()
+
+    async def test_fullscreen_toggles_chrome_window_without_closing_browser(self):
+        browser, page = self.make_browser("https://video.example")
+        session = MagicMock()
+        session.send = AsyncMock(side_effect=[
+            {"windowId": 7, "bounds": {"windowState": "normal"}}, {},
+            {"windowId": 7, "bounds": {"windowState": "fullscreen"}}, {},
+        ])
+        session.detach = AsyncMock()
+        page.context.new_cdp_session = AsyncMock(return_value=session)
+        controller = BrowserController()
+        controller._connect = AsyncMock(return_value=browser)
+
+        self.assertEqual(await controller.toggle_fullscreen(), {"fullscreen": True})
+        self.assertEqual(await controller.toggle_fullscreen(), {"fullscreen": False})
+        self.assertEqual(session.send.call_args_list[1].args, (
+            "Browser.setWindowBounds",
+            {"windowId": 7, "bounds": {"windowState": "fullscreen"}},
+        ))
+        self.assertEqual(session.send.call_args_list[3].args, (
+            "Browser.setWindowBounds",
+            {"windowId": 7, "bounds": {"windowState": "normal"}},
+        ))
+        self.assertEqual(session.detach.await_count, 2)
+        browser.close.assert_not_called()

@@ -90,6 +90,19 @@ document.getElementById('type-form').onsubmit = async event => {
   try { await api('/api/type', {text: ti.value}); ti.value = ''; }
   catch (error) { msg(error.message, true); }
 };
+document.getElementById('toggle-fullscreen').onclick = async () => {
+  try {
+    const data = await api('/api/fullscreen');
+    msg(data.fullscreen ? 'Chrome en pantalla completa.' : 'Chrome en modo ventana.');
+  } catch (error) { msg(error.message, true); }
+};
+document.getElementById('close-popups').onclick = async () => {
+  try {
+    const data = await api('/api/close-popups');
+    await status();
+    msg(data.closed ? `Ventanas emergentes cerradas: ${data.closed}.` : 'No hay ventanas emergentes abiertas.');
+  } catch (error) { msg(error.message, true); }
+};
 document.getElementById('refresh-status').onclick = status;
 
 // Keep mouse requests in order. While the host handles a movement, combine
