@@ -12,6 +12,7 @@ function remote() {
   const frames = new Map();
   let nextFrame = 0;
   let captured = null;
+  const windowEvents = {};
   const element = id => {
     if (!elements.has(id)) elements.set(id, {
       textContent: '',
@@ -19,7 +20,20 @@ function remote() {
         values: {},
         setProperty(name, value) { this.values[name] = value; },
       },
-      classList: {add() {}, remove() {}},
+      classList: {
+        values: new Set(),
+        add(value) { this.values.add(value); },
+        remove(value) { this.values.delete(value); },
+      },
+      attributes: {},
+      events: {},
+      setAttribute(name, value) { this.attributes[name] = value; },
+      getAttribute(name) { return this.attributes[name]; },
+      addEventListener(name, callback) { this.events[name] = callback; },
+      focus() { this.events.focus?.(); },
+      blur() { this.events.blur?.(); },
+      showModal() { this.open = true; },
+      close() { this.open = false; this.events.close?.(); },
       dataset: {},
       offsetWidth: id === 'joystick-knob' ? 76 : 0,
       getBoundingClientRect: () => ({left: 0, top: 0, width: 210, height: 210}),
@@ -29,10 +43,19 @@ function remote() {
     });
     return elements.get(id);
   };
+  const tabs = [element('joystick-tab'), element('shortcuts-tab')];
+  tabs[0].setAttribute('aria-controls', 'joystick-panel');
+  tabs[1].setAttribute('aria-controls', 'shortcuts-panel');
   const context = {
+    window: {
+      innerHeight: 640,
+      addEventListener: (name, callback) => { windowEvents[name] = callback; },
+    },
     document: {
       getElementById: element,
-      querySelectorAll: () => [],
+      querySelector: selector => element(selector),
+      querySelectorAll: selector => selector === '[role="tab"]' ? tabs : [],
+      documentElement: element('html'),
       addEventListener: () => {},
     },
     fetch: (url, options) => {
@@ -61,6 +84,7 @@ function remote() {
   return {
     element,
     requests,
+    windowEvents,
     frame(timestamp) {
       const scheduled = [...frames.values()];
       frames.clear();
@@ -148,4 +172,53 @@ test('a second pointer cannot change the active direction', () => {
   stick.onpointermove(pointer(2, 0, 105, {isPrimary: false}));
   app.frame(0);
   assert.ok(app.requests[0].body.dx > 0);
+});
+
+
+test('switching menus stops movement and selects only the requested panel', () => {
+  const app = remote();
+  app.element('joystick').onpointerdown(pointer(1, 200, 105));
+  app.frame(0);
+  app.element('shortcuts-tab').onclick();
+  app.frame(33);
+  assert.equal(app.requests.length, 1);
+  assert.equal(app.element('joystick').style.values['--stick-x'], '0px');
+  assert.equal(app.element('joystick-panel').hidden, true);
+  assert.equal(app.element('shortcuts-panel').hidden, false);
+  assert.equal(app.element('shortcuts-tab').getAttribute('aria-selected'), 'true');
+  assert.equal(app.element('joystick-tab').tabIndex, -1);
+  app.element('joystick-tab').onclick();
+  assert.equal(app.element('shortcuts-panel').hidden, true);
+  assert.equal(app.element('joystick-panel').hidden, false);
+});
+
+test('arrow keys move focus and selection between menus', () => {
+  const app = remote();
+  app.element('joystick-tab').onkeydown({key: 'ArrowRight', preventDefault() {}});
+  assert.equal(app.element('shortcuts-tab').tabIndex, 0);
+  assert.equal(app.element('shortcuts-panel').hidden, false);
+});
+
+test('opening the keyboard stops the joystick and closing it preserves the menu', () => {
+  const app = remote();
+  app.element('joystick-tab').onclick();
+  app.element('joystick').onpointerdown(pointer(1, 200, 105));
+  app.element('open-keyboard').onclick();
+  app.frame(0);
+  assert.equal(app.requests.length, 0);
+  assert.equal(app.element('keyboard-dialog').open, true);
+  app.element('close-keyboard').onclick();
+  assert.equal(app.element('keyboard-dialog').open, false);
+  assert.equal(app.element('joystick-panel').hidden, false);
+});
+
+test('viewport changes and lost window focus stop cursor movement', () => {
+  for (const event of ['resize', 'blur']) {
+    const app = remote();
+    app.element('joystick').onpointerdown(pointer(1, 200, 105));
+    app.windowEvents[event]();
+    app.frame(0);
+    assert.equal(app.requests.length, 0);
+    assert.equal(app.element('joystick').style.values['--stick-x'], '0px');
+  }
 });

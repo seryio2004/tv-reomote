@@ -8,6 +8,60 @@ const ti = document.getElementById('text-input');
 const stick = document.getElementById('joystick');
 const knob = document.getElementById('joystick-knob');
 let mt = null;
+const app = document.querySelector('.app');
+const keyboard = document.getElementById('keyboard-dialog');
+const tabs = [...document.querySelectorAll('[role="tab"]')];
+
+function selectMenu(tab) {
+  stopJoystick();
+  u.blur();
+  tabs.forEach(item => {
+    const selected = item === tab;
+    item.setAttribute('aria-selected', String(selected));
+    item.tabIndex = selected ? 0 : -1;
+    document.getElementById(item.getAttribute('aria-controls')).hidden = !selected;
+  });
+}
+
+tabs.forEach((tab, index) => {
+  tab.onclick = () => selectMenu(tab);
+  tab.onkeydown = event => {
+    if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+    event.preventDefault();
+    const next = event.key === 'Home' ? 0 : event.key === 'End' ? tabs.length - 1
+      : (index + (event.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length;
+    selectMenu(tabs[next]);
+    tabs[next].focus();
+  };
+});
+
+document.getElementById('open-keyboard').onclick = () => {
+  stopJoystick();
+  document.getElementById('keyboard-hint').textContent = 'Selecciona primero un campo en la TV.';
+  keyboard.showModal();
+  ti.focus({preventScroll: true});
+};
+document.getElementById('close-keyboard').onclick = () => keyboard.close();
+keyboard.addEventListener('close', () => {
+  ti.blur();
+  document.getElementById('open-keyboard').focus({preventScroll: true});
+});
+u.addEventListener('focus', () => app.classList.add('editing-url'));
+u.addEventListener('blur', () => app.classList.remove('editing-url'));
+
+// Fit the visible area, including mobile browser bars and the on-screen keyboard.
+function fitViewport() {
+  stopJoystick();
+  document.documentElement.style.setProperty('--app-height',
+    (window.visualViewport ? window.visualViewport.height : window.innerHeight) + 'px');
+}
+window.addEventListener('resize', fitViewport);
+window.visualViewport?.addEventListener('resize', fitViewport);
+window.addEventListener('blur', () => stopJoystick());
+// Prevent browser gestures while keeping the TV scroll buttons independent.
+document.addEventListener('touchmove', event => event.preventDefault(), {passive: false});
+document.addEventListener('gesturestart', event => event.preventDefault(), {passive: false});
+document.addEventListener('wheel', event => event.preventDefault(), {passive: false});
 
 async function api(path, body = null) {
   const options = {method: 'POST', headers: {}};
@@ -24,9 +78,17 @@ async function api(path, body = null) {
 
 function msg(text, error = false) {
   clearTimeout(mt);
+  if (keyboard.open) document.getElementById('keyboard-hint').textContent = text;
   m.textContent = text;
   m.style.color = error ? '#d75b5b' : '';
   mt = setTimeout(() => { m.textContent = ''; m.style.color = ''; }, 2600);
+}
+
+function connectionState(element, label, online, description) {
+  element.textContent = label;
+  element.className = online ? 'status online' : 'status offline';
+  element.title = description || label + (online ? ' conectado' : ' desconectado');
+  element.setAttribute('aria-label', element.title);
 }
 
 async function status() {
@@ -34,22 +96,18 @@ async function status() {
     const response = await fetch('/api/status');
     const data = await response.json();
     if (data.connected) {
-      c.textContent = 'Chrome conectado';
-      c.className = 'status online';
+      connectionState(c, 'Chrome', true);
       pt.textContent = data.title || 'Sin título';
       pu.textContent = data.url || '—';
     } else {
-      c.textContent = 'Chrome desconectado';
-      c.className = 'status offline';
+      connectionState(c, 'Chrome', false);
       pt.textContent = pu.textContent = '—';
     }
-    ic.textContent = data.input_connected ? 'Control conectado' : 'Control desconectado';
-    ic.className = data.input_connected ? 'status online' : 'status offline';
+    connectionState(ic, 'Control', data.input_connected);
   } catch {
-    c.textContent = 'Servidor no disponible';
-    c.className = 'status offline';
-    ic.textContent = 'Control desconectado';
-    ic.className = 'status offline';
+    connectionState(c, 'Chrome', false, 'Servidor no disponible');
+    connectionState(ic, 'Control', false);
+    pt.textContent = pu.textContent = '—';
   }
 }
 
@@ -70,6 +128,7 @@ async function nav(url) {
 
 document.getElementById('url-form').onsubmit = event => {
   event.preventDefault();
+  u.blur();
   nav(u.value);
 };
 document.querySelectorAll('[data-action]').forEach(button => {
@@ -87,7 +146,7 @@ document.querySelectorAll('[data-key]').forEach(button => {
 document.getElementById('type-form').onsubmit = async event => {
   event.preventDefault();
   if (!ti.value) return;
-  try { await api('/api/type', {text: ti.value}); ti.value = ''; }
+  try { await api('/api/type', {text: ti.value}); ti.value = ''; msg('Texto enviado a la TV.'); }
   catch (error) { msg(error.message, true); }
 };
 document.getElementById('toggle-fullscreen').onclick = async () => {
@@ -245,5 +304,6 @@ document.addEventListener('visibilitychange', () => {
   if (document.hidden) stopJoystick();
 });
 
+fitViewport();
 status();
 setInterval(status, 5000);

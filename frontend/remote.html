@@ -1,9 +1,67 @@
-<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>TV Reomote</title><link rel="stylesheet" href="/static/css/remote.css?v=fullscreen-1"></head><body><main class="app">
-<header class="topbar"><div><div class="eyebrow">BROWSER REMOTE</div><h1>TV Reomote</h1></div><div class="connection-list"><div id="connection" class="status offline">Chrome desconectado</div><div id="input-connection" class="status offline">Control desconectado</div></div></header>
-<section class="card"><div class="navrow"><button data-action="back">←</button><button data-action="forward">→</button><button data-action="reload">↻</button><button data-action="home">⌂</button></div><div class="threecol top-controls"><button data-key="Escape">Esc</button><button data-key="Space">Play / Pause</button><button data-key="Tab">Tab</button></div><form id="url-form" class="row"><input id="url" placeholder="youtube.com, netflix.com..." autocomplete="off" autocapitalize="none"><button class="primary">Abrir</button></form><div class="quick"><button data-url="https://www.youtube.com/">YouTube</button><button data-url="https://www.netflix.com/">Netflix</button><button data-url="https://www.primevideo.com/">Prime Video</button><button data-url="https://www3.hdfull.one/">HDFull</button></div><div class="twocol"><button id="toggle-fullscreen" type="button">Pantalla completa</button><button id="close-popups" type="button">Cerrar emergentes</button></div></section>
-<section class="card"><div class="heading"><span>Escribir</span><small>haz clic antes en el campo de la TV</small></div><form id="type-form" class="row"><input id="text-input" placeholder="Texto..."><button class="primary">Enviar</button></form><div class="twocol"><button data-key="Backspace">⌫</button><button data-key="Delete">Delete</button></div></section>
-<section class="card"><div class="heading"><span>Joystick</span><small>desplaza y mantén</small></div><div class="joystick-area"><div id="joystick" class="joystick" aria-label="Joystick para mover el cursor"><span class="joystick-hint joystick-up">↑</span><span class="joystick-hint joystick-right">→</span><span class="joystick-hint joystick-down">↓</span><span class="joystick-hint joystick-left">←</span><div id="joystick-knob" class="joystick-knob"></div></div></div><div class="twocol"><button id="left-click">Clic</button><button id="right-click">Clic derecho</button></div><div class="twocol"><button id="scroll-up">↑ Scroll</button><button id="scroll-down">↓ Scroll</button></div></section>
-<section class="card"><div class="heading"><span>Volumen</span><small>sonido del sistema</small></div><div class="threecol"><button data-key="VolumeDown">Vol −</button><button data-key="VolumeMute">Silencio</button><button data-key="VolumeUp">Vol +</button></div></section>
-
-<section class="card"><div class="heading"><span>Chrome</span><button id="refresh-status" class="link">Actualizar</button></div><div id="page-title" class="title">—</div><div id="page-url" class="url">—</div></section><p id="message" class="message"></p>
-</main><script src="/static/js/remote.js?v=fullscreen-1"></script></body></html>
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content">
+  <meta name="theme-color" content="#111116">
+  <title>TV Remote</title>
+  <link rel="stylesheet" href="/static/css/remote.css?v=mobile-2">
+</head>
+<body>
+  <main class="app">
+    <header class="topbar">
+      <div class="brand"><span class="brand-icon" aria-hidden="true">▣</span><div><h1>TV Remote</h1><p>Tu televisión, a mano.</p></div></div>
+      <div class="connection-list" aria-label="Estado de conexión">
+        <span id="connection" class="status offline" aria-label="Chrome desconectado" title="Chrome desconectado">Chrome</span>
+        <span id="input-connection" class="status offline" aria-label="Control desconectado" title="Control desconectado">Control</span>
+      </div>
+    </header>
+    <section id="joystick-panel" class="panel remote-panel" role="tabpanel" aria-labelledby="joystick-tab">
+      <div class="section-heading"><h2>Joystick</h2><span>Mueve y mantén</span></div>
+      <div class="pointer-controls">
+        <div class="joystick-area">
+          <div id="joystick" class="joystick" role="group" aria-label="Joystick para mover el cursor">
+            <span class="joystick-hint joystick-up" aria-hidden="true">↑</span><span class="joystick-hint joystick-right" aria-hidden="true">→</span><span class="joystick-hint joystick-down" aria-hidden="true">↓</span><span class="joystick-hint joystick-left" aria-hidden="true">←</span>
+            <div id="joystick-knob" class="joystick-knob"><span aria-hidden="true">✥</span></div>
+          </div>
+        </div>
+        <div class="scroll-controls" role="group" aria-label="Desplazar página en la TV"><button id="scroll-up" type="button" aria-label="Scroll hacia arriba">↑</button><span>SCROLL</span><button id="scroll-down" type="button" aria-label="Scroll hacia abajo">↓</button></div>
+      </div>
+      <div class="click-controls twocol"><button id="left-click" class="primary" type="button">↖ Clic</button><button id="right-click" type="button">Clic derecho</button></div>
+      <div class="utility-controls threecol">
+        <button id="open-keyboard" type="button" aria-haspopup="dialog"><span class="control-icon" aria-hidden="true">⌨</span><span>Escribir</span></button>
+        <button id="close-popups" type="button" title="Cerrar ventanas emergentes"><span class="control-icon" aria-hidden="true">▢×</span><span>Cerrar ventanas</span></button>
+        <button id="toggle-fullscreen" type="button"><span class="control-icon" aria-hidden="true">⛶</span><span>Pantalla completa</span></button>
+      </div>
+      <div class="playback-controls">
+        <div class="volume-controls" role="group" aria-label="Volumen del sistema"><button data-key="VolumeDown" type="button" aria-label="Bajar volumen">Vol −</button><button data-key="VolumeMute" type="button" aria-label="Activar o desactivar silencio">Silencio</button><button data-key="VolumeUp" type="button" aria-label="Subir volumen">Vol +</button></div>
+        <button data-key="Space" class="play-button" type="button" aria-label="Reproducir o pausar">⏯</button>
+      </div>
+    </section>
+    <section id="shortcuts-panel" class="panel shortcuts-panel" role="tabpanel" aria-labelledby="shortcuts-tab" hidden>
+      <div class="section-heading"><h2>Atajos</h2><span>Elige qué ver</span></div>
+      <form id="url-form" class="url-form"><label for="url">Abrir una página</label><div class="row"><input id="url" type="text" inputmode="url" placeholder="Escribe una web…" autocomplete="off" autocapitalize="none" spellcheck="false" enterkeyhint="go"><button class="primary" type="submit">Abrir ↗</button></div></form>
+      <div class="quick" aria-label="Páginas favoritas">
+        <button data-url="https://www.youtube.com/" class="shortcut youtube" type="button"><span class="shortcut-icon" aria-hidden="true">▶</span><span>YouTube</span><span class="shortcut-arrow" aria-hidden="true">↗</span></button>
+        <button data-url="https://www.netflix.com/" class="shortcut netflix" type="button"><span class="shortcut-icon" aria-hidden="true">N</span><span>Netflix</span><span class="shortcut-arrow" aria-hidden="true">↗</span></button>
+        <button data-url="https://www.primevideo.com/" class="shortcut prime" type="button"><span class="shortcut-icon" aria-hidden="true">p</span><span>Prime Video</span><span class="shortcut-arrow" aria-hidden="true">↗</span></button>
+        <button data-url="https://www3.hdfull.one/" class="shortcut hdfull" type="button"><span class="shortcut-icon" aria-hidden="true">HD</span><span>HDFull</span><span class="shortcut-arrow" aria-hidden="true">↗</span></button>
+      </div>
+      <div class="browser-controls">
+        <div class="navrow" role="group" aria-label="Navegación en la TV"><button data-action="back" type="button" aria-label="Atrás">←</button><button data-action="forward" type="button" aria-label="Adelante">→</button><button data-action="reload" type="button" aria-label="Recargar página">↻</button><button data-action="home" type="button" aria-label="Inicio">⌂</button></div>
+        <div class="threecol key-shortcuts"><button data-key="Escape" type="button">Esc</button><button data-key="Tab" type="button">Tab</button><button data-key="Enter" type="button">Enter ↵</button></div>
+      </div>
+      <div class="page-info"><div class="page-details"><span class="eyebrow">EN LA TV</span><div id="page-title" class="title">—</div><div id="page-url" class="url">—</div></div><button id="refresh-status" class="refresh" type="button" aria-label="Actualizar estado">↻</button></div>
+    </section>
+    <nav class="menu-tabs" role="tablist" aria-label="Menús del mando"><button id="joystick-tab" role="tab" aria-selected="true" aria-controls="joystick-panel" tabindex="0" type="button"><span aria-hidden="true">✥</span> Joystick</button><button id="shortcuts-tab" role="tab" aria-selected="false" aria-controls="shortcuts-panel" tabindex="-1" type="button"><span aria-hidden="true">▦</span> Atajos</button></nav>
+    <p id="message" class="message" role="status" aria-live="polite"></p>
+  </main>
+  <dialog id="keyboard-dialog" aria-labelledby="keyboard-title">
+    <div class="dialog-heading"><h2 id="keyboard-title">Escribir en la TV</h2><button id="close-keyboard" type="button" aria-label="Cerrar teclado">×</button></div>
+    <p id="keyboard-hint" role="status" aria-live="polite">Selecciona primero un campo en la TV.</p>
+    <form id="type-form" class="row"><input id="text-input" aria-label="Texto para la TV" placeholder="Escribe aquí…" autocomplete="off" maxlength="2000" enterkeyhint="send"><button class="primary" type="submit">Enviar</button></form>
+    <div class="threecol keyboard-keys"><button data-key="Backspace" type="button" aria-label="Borrar carácter">⌫ Borrar</button><button data-key="Delete" type="button">Suprimir</button><button data-key="Enter" type="button">Enter ↵</button></div>
+  </dialog>
+  <script src="/static/js/remote.js?v=mobile-2"></script>
+</body>
+</html>
